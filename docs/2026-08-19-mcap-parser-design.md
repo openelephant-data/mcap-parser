@@ -52,9 +52,8 @@
 | ch9 | `head_left_camera_undistorted.mp4` | H.264 重封装为 MP4（`-c copy`），fps 由时间戳算 |
 | ch10 | `head_right_camera_undistorted.mp4` | 同上 |
 | ch11–14 | `camera_calibration.json` | `{left,right}_{raw,undistorted}: {width,height,distortion_model,K[9],D[5],R[9],P[12],frame_id}` |
-| ch1 | `tracking_data_tf.jsonl` | 每帧一行：`{ts_ns, transforms:[{parent,child,translation[3],rotation[4]}]}` |
-| ch1 | `body_keypoints_labels.npz` | `body_keypoints_3d`(N,24,3)、`body_keypoints_quaternions`(N,24,4)、`body_joint_names`(24,)、`timestamps`(N,)（2D 见下条） |
-| ch1 + ch11/13 | `body_keypoints_labels.npz`（补键） | `body_keypoints_2d`(N,24,2)：用 undistorted 标定把 3D 关节投影到 2D |
+| ch1 | `tracking_data_tf.jsonl` | 每帧一行：`{ts_ns, transforms:[{parent,child,translation[3],rotation[4]}]}`（全部 44 个 frame：2 相机 + 2 腕 + 40 指节，忠实全量） |
+| ch1 | `wrist_poses.npz` | 键 `left`(N,7)、`right`(N,7)、`timestamps`(N,) = 腕根位姿 `[x,y,z,qx,qy,qz,qw]`（手部位姿的根） |
 | ch2 | `left_keypoints_3d.npy` / `right_keypoints_3d.npy` | `(N,21,3)` float32 |
 | ch3 | `left_keypoints_2d.npy` / `right_keypoints_2d.npy` | `(N,21,2)` float32 |
 | ch4 + ch1（头部变换） | `head_pose_trajectory.npy` | `(N,7)` = `[x,y,z,qx,qy,qz,qw]` |
@@ -68,19 +67,21 @@
 
 > **帧数说明**：原 `openembodied-data` 的 `left_keypoints_3d.npy` 是 6057 帧（更高频率的 WiLoR 检测），但 MCAP 只存了 3066 帧对齐子集。本解析器产出的是 **MCAP 实际帧数**（3066），无法恢复被丢弃的帧。这是预期行为，manifest 会显式记录每流的帧数。
 
+> **不可恢复说明（重要）**：原 `body_keypoints_labels.npz` 的 24 关节 SMPL 身体骨架（Pelvis/Spine/Shoulder/Elbow/…）**不在 `head_pose_mcap.mcap` 的 tf_tree 里**。实测 tf_tree 每帧只有 44 个 frame：`head_left_camera`、`head_right_camera`、`left_wrist`、`right_wrist` + 40 个指节（thumb cmc/mcp/ip/tip、index/middle/ring/pinky 各 mcp/pip/dip/tip）。24-SMPL 身体关键点来自 `openembodied-data` 的 `body_pose_prelabel` 上游任务，本 MCAP 无法还原。故 body_tf 只产出 `tracking_data_tf.jsonl`（忠实全量 44 frame）+ `wrist_poses.npz`（腕根 7 元组），**不伪造 24 关节数组，也不做 body 2D 投影**（2D 投影改由手部通道 ch3 直接给出，见 §5.3）。
+
 ### 3.1 `aligned_pointclouds.npz` 键
 
 对齐原 `openembodied-data` 的 `aligned_pointclouds.npz` 键，能从 MCAP 恢复的子集：
 
 - `frame_timestamps`(N,)、`frame_timestamps_ns`(N,) —— 来自 ch1/ch4 每帧 `publish_time`
 - `head_poses`(N,7) —— 来自 ch1 head_left_camera 变换
-- `body_joint_positions`(N,24,3)、`body_joint_quaternions`(N,24,4)、`body_joint_names`(24,) —— 来自 ch1
-- `left_hand_positions`(N,21,3)、`left_hand_quaternions`(N,21,4)、`right_hand_positions`、`right_hand_quaternions` —— 来自 ch1
-- `hand_flags`(N,2)、`left_hand_poses`(N,7)、`right_hand_poses`(N,7) —— 来自 ch1
+- `left_hand_positions`(N,21,3)、`right_hand_positions`(N,21,3) —— 来自 ch2（21 关节 3D）
+- `left_hand_poses`(N,7)、`right_hand_poses`(N,7) —— 来自 ch1 的 left_wrist/right_wrist 变换（手根 7 元组）
+- `hand_flags`(N,2) —— 每只手是否检出（ch2 有对应实体则 1，否则 0）
 - `pc_static_points`(M,3)、`pc_static_colors`(M,3) —— 来自 ch7
 - `pc_frame_indices`(511,)、`pc_frame_timestamps`(511,)、`pc_frame_point_counts`(511,)、`pc_frame_data`(511,) —— 来自 ch6
 
-> 与原文件相比可能缺 `pc_*` 之外个别派生量；以 MCAP 实际可得为准，manifest 标注。
+> **不可恢复**：`body_joint_positions`(N,24,3)、`body_joint_quaternions`(N,24,4)、`body_joint_names`(24,)、`left/right_hand_quaternions`(21 关节四元数) **不在本 MCAP**（tf_tree 无 24-SMPL 身体骨架，ch2 只给位置不给四元数）。aligned_pointclouds.npz 这些键省略，manifest 标 `missing_keys`。
 
 ## 4. `manifest.json` 结构
 
@@ -100,7 +101,11 @@
     "left_keypoints_3d.npy": {"channel": 2, "frames": 3066, "timestamps_ns": [...] },
     "…": {}
   },
-  "topic_to_file": { "/pose_algo_body/hand_keypoints": ["left_keypoints_3d.npy","right_keypoints_3d.npy"], "…": [] }
+  "topic_to_file": { "/pose_algo_body/hand_keypoints": ["left_keypoints_3d.npy","right_keypoints_3d.npy"], "…": [] },
+  "missing_keys": {
+    "aligned_pointclouds.npz": ["body_joint_positions","body_joint_quaternions","body_joint_names","left_hand_quaternions","right_hand_quaternions"]
+  },
+  "not_recoverable": ["24-SMPL body skeleton (from body_pose_prelabel upstream)", "body_keypoints_2d (24 joints)"]
 }
 ```
 
@@ -117,8 +122,7 @@ mcap-parser/
   src/mcap_parser/
     __init__.py
     reader.py            # McapFile：单遍扫描 + 分发
-    decoders.py          # foxglove protobuf 解码助手 + body 24 关节名表
-    project.py           # 3D→2D 投影（用标定 K/D）
+    decoders.py          # foxglove protobuf 解码助手 + WRIST_FRAME_IDS 常量
     manifest.py          # 写 manifest.json
     cli.py               # python -m mcap_parser <mcap> -o <dir> [选项]
     writers/
@@ -132,7 +136,7 @@ mcap-parser/
       body_tf.py
       camera_calib.py
   tests/
-    conftest.py          # 合成 foxglove MCAP fixture
+    conftest.py          # 合成 foxglove MCAP fixture（含全部 schema）
     test_writers.py
     test_integration.py
 ```
@@ -154,9 +158,13 @@ class McapFile:
         ManifestBuilder(self).write(out_dir, writers)
 ```
 
-- **分发策略**：每条消息按 channel topic 前缀匹配给归属 writer。一个 writer 可拥有多个 topic（如 `body_tf` 拥有 ch1，但 2D 投影需读 ch1+ch11/13，因此 body_tf 在 finalize 阶段再读标定 → 投影）。
-- **跨流依赖**：`body_keypoints_2d` 和 `head_pose_trajectory` 的 7 列需组合 ch1 + ch11/13。为保持单遍，writer 在 `feed` 阶段缓存所需的 ch1 变换与标定消息，在 `finalize` 阶段做投影/拼装。
+- **分发策略**：每条消息按 channel topic 前缀匹配给归属 writer。一个 writer 可拥有多个 topic（如 `hand_keypoints` 同时拥有 ch2/ch3，`body_tf` 拥有 ch1）。
+- **跨流依赖**：`head_pose_trajectory.npy` 的 7 列需组合 ch4 轨迹点 + ch1 head_left_camera 四元数；`aligned_pointclouds.npz` 需组合 ch6/ch7 + ch1/ch2。为保持单遍，writer 在 `feed` 阶段缓存所需的中间数据，在 `finalize` 阶段拼装。reader 在所有 writer `finalize` 前会先做一次**二次扫描**把跨 writer 共享的 ch1 帧变换缓存喂给需要的 writer（见 §5.2.1）。
 - **内存**：手部关键点（3066×21×3×2 ≈ 1.5 MB）、网格顶点（3066×778×3×2 ≈ 28 MB）常驻内存可接受；点云 ch6 逐帧约 300 MB 总量，`feed` 阶段逐帧 append 到对象数组，finalize 写 NPZ + 逐帧 PCD；视频 NAL 流式 append 到 `.h264` 临时文件，不常驻。
+
+### 5.2.1 跨流共享缓存
+
+`HeadTrajectoryWriter`、`PointcloudWriter`、`BodyTfWriter` 都需要 ch1 的逐帧 head/wrist 变换。为避免各 writer 独立缓冲全部 ch1 数据，`McapFile` 持有一个 `_tf_cache: list[dict[child_frame_id, (t, q, ts)]]`（按帧），在 `feed` 阶段由 `BodyTfWriter` 写入（body_tf 拥有 ch1），其他 writer 通过 `reader.tf_cache` 只读访问。head_left_camera 变换同样进入该缓存供 head_trajectory / pointcloud 用。
 
 ### 5.3 各 writer 细节
 
@@ -167,9 +175,9 @@ class McapFile:
 - 失败语义：ffmpeg 不可用时写 `<side>.h264` 并在 manifest 标 `muxed=false`，不抛异常。
 
 **HandKeypointsWriter** (`hand_keypoints.py`)
-- 拥有 `/pose_algo_body/hand_keypoints` 与 `/pose_algo_body/hand_keypoints_2d`。
-- `feed`：解码 SceneUpdate，按实体 `id`（`left_hand_skeleton`/`right_hand_skeleton`）取 21 个 sphere 的 position → 3D 用 `(x,y,z)`，2D 用 `(x,y)`（z 丢弃），append 到 per-side buffer，记录 timestamps_ns。
-- `finalize`：`np.save` 为 `left_keypoints_3d.npy` 等，`is_right`/左右按实体 id 判定。无对应实体的帧用 `nan` 占位并记到 manifest 的 `missing_frames`。
+- 拥有 `/pose_algo_body/hand_keypoints`（3D）与 `/pose_algo_body/hand_keypoints_2d`（2D）。
+- `feed`：解码 SceneUpdate，按实体 `id`（`left_hand_skeleton`/`right_hand_skeleton`）取 21 个 sphere 的 position → 3D 通道用 `(x,y,z)`，2D 通道用 `(x,y)`（z 丢弃），append 到 per-side buffer，记录 timestamps_ns。2D 直接取自 ch3，**无需投影**。
+- `finalize`：`np.save` 为 `left_keypoints_3d.npy` / `right_keypoints_3d.npy` / `left_keypoints_2d.npy` / `right_keypoints_2d.npy`，左右按实体 id 判定。无对应实体的帧用 `nan` 占位并记到 manifest 的 `missing_frames`。
 
 **HandMeshWriter** (`hand_mesh.py`)
 - 拥有 `/pose_algo_body/hand_mesh`。
@@ -177,34 +185,29 @@ class McapFile:
 - `finalize`：`np.savez_compressed` 为 `left_hand_vertices.npz`，键 `vertices`/`faces`/`is_right`/`detected`（`detected` 全 True，因为 MCAP 里都是检出帧）。
 
 **HeadTrajectoryWriter** (`head_trajectory.py`)
-- 拥有 `/pose_algo_body/head_pose_trajectory`，并在 `feed` 阶段从经过的 ch1 消息里抽 head_left_camera 变换缓存。
-- `finalize`：逐帧用 ch4 的轨迹球 position + 配对帧 ch1 的 head_left_camera 四元数 → `(N,7)` = `[x,y,z,qx,qy,qz,qw]`，存 `head_pose_trajectory.npy`。配对按最近 timestamps_ns。
+- 拥有 `/pose_algo_body/head_pose_trajectory`，`feed` 阶段只缓存 ch4 每帧的轨迹球 position + timestamps。
+- `finalize`：逐帧取 ch4 的 position 作 `[x,y,z]`，配对 `reader.tf_cache` 同帧 head_left_camera 变换的 rotation 作 `[qx,qy,qz,qw]` → `(N,7)` = `[x,y,z,qx,qy,qz,qw]`，存 `head_pose_trajectory.npy`。配对按帧序（tf_cache 与 ch4 同为逐帧、时间戳对齐）。
 
 **PointcloudWriter** (`pointcloud.py`)
-- 拥有 `/pcd_dir/pointcloud`、`/pcd_dir/pointcloud/static_scene`。
-- `feed`：解码 PointCloud，按 `point_stride` + `fields`（x/y/z FLOAT32@0/4/8，red/green/blue/alpha UINT8@12/13/14/15）解析 `data` 为 `(P,3)` xyz + `(P,3)` rgb（归一化到 0–1）。
-- ch6 逐帧：append 到对象数组 `pc_frame_data`、记 counts/timestamps/indices；同时写 `pointclouds/frame_{i:06d}.pcd`（binary，含 rgb）。
-- ch7：缓存为 `pc_static_points/colors`。
-- `finalize`：拼 `aligned_pointclouds.npz`（§3.1 全键，跨流部分由 reader 在 finalize 前注入或 body_tf 共享缓冲）；写 `static_scene.ply`。
+- 拥有 `/pcd_dir/pointcloud`（ch6）、`/pcd_dir/pointcloud/static_scene`（ch7）。
+- `feed`：解码 PointCloud，按 `point_stride` + `fields`（x/y/z FLOAT32@0/4/8，red/green/blue/alpha UINT8@12/13/14/15）用 `numpy.frombuffer` 解析 `data` 为 `(P,3)` xyz + `(P,3)` rgb（归一化到 0–1）。
+- ch6 逐帧：append 到对象数组 `pc_frame_data`、记 `pc_frame_point_counts`/`pc_frame_timestamps`/`pc_frame_indices`；同时写 `pointclouds/frame_{i:06d}.pcd`（binary，含 rgb）。
+- ch7：缓存为 `pc_static_points`/`pc_static_colors`。
+- `finalize`：拼 `aligned_pointclouds.npz`（§3.1 键，`head_poses`/`left/right_hand_poses`/`left/right_hand_positions`/`hand_flags`/`frame_timestamps*` 取自 `reader.tf_cache` 与 ch2 缓冲）；写 `static_scene.ply`（ASCII，含 rgb）。
 - PCD 每帧可选关闭（`--no-per-frame-pcd`）以省 IO。
 
 **BodyTfWriter** (`body_tf.py`)
-- 拥有 `/pose_algo_body/tf_tree`，并在 finalize 阶段读 ch11/13（undistorted 标定）做 2D 投影。
-- `feed`：解码 FrameTransforms，逐帧写 `tracking_data_tf.jsonl` 一行；同时抽 24 个身体关节的 pos/quat 入 buffer，记 timestamps。
-- 身体 24 关节名表：常量 `BODY_JOINT_NAMES`（取自 `openelephant.common.skeleton.BODY_JOINT_TF_NAMES` 的 24 项，硬编码进 `decoders.py` 以免跨仓依赖）。
-- `finalize`：组装 `body_keypoints_labels.npz` 的 3D/quat/names/timestamps；用 `project.py` 的 `project_world_to_camera`（内参 K + 畸变 plumb_bob 反畸变后投影）把 3D 关节投到左目 undistorted 像 → `body_keypoints_2d`(N,24,2)。投影所需 world→camera 变换也来自 ch1（head_left_camera）。
+- 拥有 `/pose_algo_body/tf_tree`（ch1）。
+- `feed`：解码 FrameTransforms，逐帧把所有 transforms 写入 `reader.tf_cache[frame_index]`（dict: child_frame_id → (translation[3], rotation[4], ts_ns)）；同时追加写 `tracking_data_tf.jsonl` 一行 `{ts_ns, transforms:[{parent,child,translation,rotation}]}`。
+- `finalize`：从 `reader.tf_cache` 抽 `left_wrist`/`right_wrist` 的 (t,q) → `wrist_poses.npz`（键 `left`(N,7)、`right`(N,7)、`timestamps`(N,)）。**不产出 24-SMPL body_keypoints**（tf_tree 无身体骨架，见 §3 不可恢复说明）。
+- 常量 `WRIST_FRAME_IDS = ("left_wrist", "right_wrist")`、`HEAD_FRAME_ID = "head_left_camera"` 硬编码于 `decoders.py`。
 
 **CameraCalibWriter** (`camera_calib.py`)
 - 拥有 topic 前缀 `/head_{left,right}_camera_params/`。
 - `feed`：解码 CameraCalibration，缓存到 `{side}_{variant}` dict（每帧内容相同，首帧即可）。
 - `finalize`：写 `camera_calibration.json`，结构 §3。
 
-### 5.4 投影模块 `project.py`
-
-实现 `project_points(points_world, K, D, dist_model, T_world_cam) -> (M,2)`：
-- `T_world_cam` 来自 ch1 head 相机变换。
-- 先转相机系，plumb_bob 畸变（OpenCV `cv2.projectPoints`），再内参投影。
-- 复用 `openelephant.common.camera.project_world_to_camera` 的语义，但本仓**自包含实现**（不 import openembodied，避免跨仓耦合）。
+> 注：原 spec 的 `project.py` 3D→2D 投影模块**已移除**——手部 2D 直接来自 ch3，身体 2D 不存在。手部 2D 关键点已是 MCAP 原生通道，无需投影。
 
 ## 6. CLI
 
@@ -235,24 +238,24 @@ python -m mcap_parser <mcap_path> -o <out_dir>
   - `hand_mesh`：`vertices (3,778,3)`、`faces (1538,3)`、键齐全。
   - `head_trajectory`：`(3,7)`，7 列。
   - `pointcloud`：NPZ 键齐全、PCD 文件数==帧数。
-  - `body_tf`：`body_keypoints_3d (3,24,3)`、`body_keypoints_2d (3,24,2)`。
+  - `body_tf`：`wrist_poses.npz` 含 `left (3,7)`、`right (3,7)`、`timestamps (3,)`；`tracking_data_tf.jsonl` 行数==帧数且每行 transforms 含 44 项。
   - `camera_calib`：JSON 4 组、K 长度 9。
 - **集成 `test_integration.py`**：对真实 MCAP 截前 30 s（或前 900 帧）跑一次，断言 manifest 存在、视频 mp4 可被 `cv2.VideoCapture` 打开且帧数合理、几个 NPZ 形状符合 §3 契约。537 MB 全量不入 CI。
-- **投影单测**：给定已知 K/T，断言投影点落在像内且与 OpenCV 参考一致。
 
 ## 9. 依赖
 
 - 运行：`mcap`、`numpy`、`opencv-python`、`foxglove-schemas-protobuf`；系统 `ffmpeg`（视频 remux，可选）。
 - CLI：`fire`（或 `argparse`，倾向 `fire` 简洁）。
 - 测试：`pytest`、`mcap`（写 fixture）。
-- **不依赖** `openembodied-data`：24 关节名表、投影函数均在本仓自包含实现。
+- **不依赖** `openembodied-data`：`WRIST_FRAME_IDS`/`HEAD_FRAME_ID` 常量自包含。
 
 ## 10. 非目标（YAGNI）
 
 - 不做可视化/回放（那是 Foxglove Studio 的事）。
 - 不做随机访问库 API（导出文件即终态）。
 - 不处理非 foxglove schema 的 MCAP（如 ROS2 CDR）。
-- 不恢复 MCAP 里不存在的数据（如 6057 帧的高频关键点、`body_keypoints_2d` 的原始来源）。
+- 不恢复 MCAP 里不存在的数据：6057 帧高频关键点、24-SMPL 身体骨架、body 2D 投影、21 关节四元数。
+- 不做 3D→2D 投影（手部 2D 直接来自 ch3 通道）。
 - 不上传 TOS / 不接 MQ —— 纯本地解析。
 
 ## 11. 验收标准
@@ -261,14 +264,15 @@ python -m mcap_parser <mcap_path> -o <out_dir>
 2. `head_left_camera_undistorted.mp4` / 右目可用 `cv2.VideoCapture` 打开，帧数 ≈ 3066。
 3. `left_hand_vertices.npz` 键与形状与 `openembodied-data` 原文件一致（3066×778×3 + 1538×3）。
 4. `head_pose_trajectory.npy` 形状 `(3066,7)`。
-5. `body_keypoints_labels.npz` 含 `body_keypoints_2d (3066,24,2)`，且投影点落在 `[0,width]×[0,height]` 内。
-6. `aligned_pointclouds.npz` 含 §3.1 全部键，`pc_frame_data` 长度 511。
+5. `wrist_poses.npz` 含 `left (3066,7)`、`right (3066,7)`、`timestamps (3066,)`；`tracking_data_tf.jsonl` 行数 3066、每行 44 个 transform。
+6. `aligned_pointclouds.npz` 含 §3.1 全部可恢复键，`pc_frame_data` 长度 511；manifest `missing_keys` 含 24-SMPL body 键。
 7. 逐帧 PCD 数量 == ch6 帧数（511）。
-8. 单测全绿；集成测试对截断 MCAP 通过。
+8. `camera_calibration.json` 含 4 组标定，K 长度 9。
+9. 单测全绿；集成测试对截断 MCAP 通过。
 
 ## 12. 已决默认值（spec 评审时可推翻）
 
-- `body_keypoints_2d` 投影**默认只投左目 undistorted**（与 `body_keypoints_2d` 单一 (N,24,2) 契约一致）。若后续需要右目，扩展为 `body_keypoints_2d_left` / `_right` 两个键。
+- 手部 2D 关键点**直接取自 ch3**（不投影）。
 - 逐帧 PCD 默认 **binary**（紧凑、IO 小）；如需人读再考虑 ASCII 选项。
 - CLI 默认用 **`fire`**（简洁、支持子命令扩展）；无强烈反对则定。
-- `BODY_JOINT_NAMES` 取 24 项常量硬编码（来源 `openelephant.common.skeleton.BODY_JOINT_TF_NAMES`），实现时从该处取值后固化，避免运行期跨仓依赖。
+- `WRIST_FRAME_IDS = ("left_wrist","right_wrist")`、`HEAD_FRAME_ID = "head_left_camera"` 硬编码于 `decoders.py`，源自对基准 MCAP tf_tree 的实测。

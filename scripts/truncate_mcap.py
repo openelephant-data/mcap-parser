@@ -24,7 +24,7 @@ def truncate(in_path: str, out_path: str, max_frames: int = 300) -> None:
     w.start()
     video_chs = {
         cid for cid, ch in summary.channels.items()
-        if "undistorted" in ch.topic and ch.topic.endswith("/image")
+        if "head_left_camera_undistorted" in ch.topic and ch.topic.endswith("/image")
     }
     frame = 0
     for schema, channel, msg in r.iter_messages():

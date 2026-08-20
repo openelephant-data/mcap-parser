@@ -1,6 +1,6 @@
 # mcap-parser
 
-把 `head_pose_mcap.mcap`（foxglove/protobuf）解析为独立文件，格式对齐 `openembodied-data` 原始产物。
+把 `head_pose_mcap.mcap`（foxglove/protobuf）解析为独立文件，格式对齐 `openelephant-data` 原始产物。
 
 ## 安装
 

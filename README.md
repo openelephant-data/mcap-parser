@@ -16,6 +16,8 @@ uv sync --extra dev
 uv run mcap-parser --help
 ```
 
+> 可选系统依赖：视频输出依赖 `ffmpeg`（remux H.264 → `.mp4`）。未安装时不报错，自动退化为 `.h264` 裸流。macOS 可 `brew install ffmpeg`。
+
 > 注：若与共享环境中的 pandas/streamlit 同装，`numpy` 版本约束可能冲突；本仓代码兼容 numpy 1.26 与 2.x，按需固定 `numpy==1.26.4` 即可（如 `uv add "numpy==1.26.4"`）。
 
 ## 用法
@@ -41,7 +43,7 @@ uv run python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--ov
 ## 不可恢复
 
 `head_pose_mcap.mcap` 的 tf_tree 只含 2 相机 + 2 腕 + 40 指节，**无 24-SMPL 身体骨架**。
-原 `body_keypoints_labels.npz`（24 关节）来自 `openembodied-data` 的 `body_pose_prelabel` 上游，
+原 `body_keypoints_labels.npz`（24 关节）来自 `openelephant-data` 的 `body_pose_prelabel` 上游，
 本 MCAP 无法还原；故 body_tf 只产出 `tracking_data_tf.jsonl`（忠实全量）+ `wrist_poses.npz`（腕根），
 手部 2D 直接取自 ch3 通道（不做投影）。详见 `docs/2026-08-19-mcap-parser-design.md`。
 

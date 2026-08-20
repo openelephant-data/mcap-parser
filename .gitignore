@@ -8,3 +8,5 @@ build/
 *.egg-info/
 .tmp/
 tests/data/
+data/
+out_dir/

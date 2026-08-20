@@ -4,16 +4,24 @@
 
 ## 安装
 
+使用 [uv](https://docs.astral.sh/uv/) 安装：
+
 ```bash
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
-> 注：若与共享环境中的 pandas/streamlit 同装，`numpy` 版本约束可能冲突；本仓代码兼容 numpy 1.26 与 2.x，按需固定 `numpy==1.26.4` 即可。
+`uv` 会自动下载所需 Python（≥3.10）并创建 `.venv/`。之后用 `uv run` 在环境内执行命令，无需手动 activate：
+
+```bash
+uv run mcap-parser --help
+```
+
+> 注：若与共享环境中的 pandas/streamlit 同装，`numpy` 版本约束可能冲突；本仓代码兼容 numpy 1.26 与 2.x，按需固定 `numpy==1.26.4` 即可（如 `uv add "numpy==1.26.4"`）。
 
 ## 用法
 
 ```bash
-python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--overwrite true]
+uv run python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--overwrite true]
   [--side left|right|both]
   [--streams video,hand_keypoints,hand_mesh,head_trajectory,pointcloud,body_tf,camera_calib]
   [--per_frame_pcd true|false]
@@ -40,7 +48,7 @@ python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--overwrite
 ## 测试
 
 ```bash
-pytest -v                      # 全部单测（合成 foxglove MCAP 夹具）
-python scripts/truncate_mcap.py <real.mcap> tests/data/head_pose_mcap_trim.mcap 300
-pytest tests/test_integration.py -v   # 真实截断 MCAP 集成测试
+uv run pytest -v              # 全部单测（合成 foxglove MCAP 夹具）
+uv run python scripts/truncate_mcap.py <real.mcap> tests/data/head_pose_mcap_trim.mcap 300
+uv run pytest tests/test_integration.py -v   # 真实截断 MCAP 集成测试
 ```

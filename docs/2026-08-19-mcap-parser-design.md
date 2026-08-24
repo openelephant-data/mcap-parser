@@ -65,7 +65,7 @@
 | ch6 | `pointclouds/frame_{i:06d}.pcd` | 每帧一个 PCD（ASCII 或 binary，含 rgb 字段） |
 | ch7 | `static_scene.ply` | PLY（xyz+rgb） |
 | ch7 | `aligned_pointclouds.npz`（补键 `pc_static_*`） | 见 §3.1 |
-| ch15 | `depth/frame_{i:06d}.bin` | mono16 裸字节流（320×240，153600 B/帧），原样写出 `RawImage.data`，不转码、不改端序 |
+| ch15 | `head_depth_camera.npz` | `depth`(N,240,320) uint16（mono16 原值堆叠，zlib 压缩）+ `timestamps_ns`/`frame_indices`(N,) int64 + `width/height/step` 标量 |
 | ch8 | — | 空通道，跳过 |
 | 全部 | `manifest.json` | 见 §4 |
 

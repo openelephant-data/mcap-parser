@@ -16,22 +16,23 @@
 
 | 源通道 | 输出文件 | 格式 |
 |---|---|---|
-| ch15 | `depth/frame_{i:06d}.bin` | 逐帧 mono16 裸字节流，**原样写出 `obj.data`**（153600 B/帧），无 numpy 头、不转码、不改端序 |
+| ch15 | `head_depth_camera.npz` | `depth`(N,240,320) uint16（mono16 原值堆叠，zlib 压缩）+ `timestamps_ns`(N,) int64 + `frame_indices`(N,) int64 + `width/height/step` 标量 |
 | ch16 | `camera_calibration.json`（键 `head_depth_camera`） | 与现有 `{left,right}_{raw,undistorted}` 平级，含 width/height/distortion_model/K/D/R/P/frame_id |
 
-manifest 在 `outputs["depth/"]` 记录：`frames`、`width`、`height`、`encoding`、`step`、`timestamps_ns`。
+manifest 在 `outputs["head_depth_camera.npz"]` 记录：`frames`、`width`、`height`、`encoding`、`step`、`dtype`、`timestamps_ns`。
 
 ## 3. 模块改动
 
 1. `decoders.py`：`MSG_CLASS`/`FILE_DESC` 注册 `foxglove.RawImage` → `RawImage_pb2.RawImage`。
-2. 新 `writers/depth.py`：`DepthWriter`，topic 驱动，缓存 `(data, publish_time)` + 首帧元信息，`finalize` 逐帧 `write_bytes`。
+2. 新 `writers/depth.py`：`DepthWriter`，topic 驱动，缓存 `(data, publish_time)` + 首帧元信息，`finalize` 按 step 切行、堆叠为 `depth(N,H,W) uint16`，写 `head_depth_camera.npz`（`depth` + `timestamps_ns` + `frame_indices` + `width/height/step`）。
 3. `writers/camera_calib.py`：`CALIB_TOPICS` 追加 `"/head_depth_camera_params/"`；`feed` 先判 `"head_depth" in topic` → key `head_depth_camera`，避免被误判为 right。
 4. `reader.py`：`STREAM_TO_CLASS["depth"]=DepthWriter`；`build_writers` 加无参 `DepthWriter()`。
 5. `cli.py` / `__main__.py`：streams 列表文档加 `depth`。
 
 ## 4. 取舍
 
-- 深度图**仅**出逐帧 `.bin` 裸流，不做 `.npz` 堆叠、不调 ffmpeg（裸流即原始 mono16）。
+- 深度图出**单文件** `head_depth_camera.npz`（堆叠 + 索引），不做逐帧 `.bin`、不调 ffmpeg。
+- depth 像素按 `step` 切行取每行前 `width*2` 字节，兼容行填充（实测 step==width*2，无填充）。
 - `depth` 作为独立可选 stream，默认随 `ALL_STREAMS` 一起产出。
 - 深度标定并入 `camera_calibration.json` 而非另立文件，保持单一标定入口。
 

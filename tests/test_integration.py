@@ -33,13 +33,14 @@ def test_integration_full_parse(tmp_path):
         "head_depth_camera",
     }
     assert calib["head_depth_camera"]["frame_id"] == "head_depth_camera"
-    # 深度图逐帧 .bin 裸流
-    depth_entry = ctx.outputs["depth/"]
+    # 深度图 npz：depth(N,240,320) uint16 + 索引
+    depth_entry = ctx.outputs["head_depth_camera.npz"]
     n_depth = depth_entry["frames"]
-    bins = sorted((out / "depth").glob("*.bin"))
-    assert len(bins) == n_depth
-    # mono16 320×240 = 153600 字节/帧
-    assert all(b.stat().st_size == 153600 for b in bins)
+    z = np.load(out / "head_depth_camera.npz")
+    assert z["depth"].shape == (n_depth, 240, 320)
+    assert z["depth"].dtype == np.uint16
+    assert z["timestamps_ns"].shape == (n_depth,)
+    assert z["frame_indices"].tolist() == list(range(n_depth))
     # 视频存在（可能 muxed=False 但 .mp4/.h264 至少一个）
     assert any((out / f"head_{s}_camera_undistorted.mp4").exists()
                or (out / f"{s}.h264").exists() for s in ("left", "right"))

@@ -38,7 +38,7 @@ uv run python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--ov
 - 点云：`aligned_pointclouds.npz` + `pointclouds/frame_000000.pcd`（逐帧 binary） + `static_scene.ply`
 - 身体/手根 tf：`tracking_data_tf.jsonl`（每帧 44 个 transform） + `wrist_poses.npz`（`left/right (N,7)` + `timestamps`）
 - 相机标定：`camera_calibration.json`（5 组：左/右 × raw/undistorted + `head_depth_camera`）
-- 深度图：`depth/frame_{i:06d}.bin`（mono16 裸流，320×240，原样写出 `RawImage.data`，不转码）
+- 深度图：`head_depth_camera.npz`（`depth(N,240,320)` uint16 + `timestamps_ns`/`frame_indices` 索引，mono16 原值堆叠，zlib 压缩）
 - 清单：`manifest.json`（per-stream 帧数 + timestamps_ns + missing_keys + not_recoverable）
 
 ## 不可恢复

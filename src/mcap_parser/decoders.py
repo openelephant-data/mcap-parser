@@ -12,6 +12,7 @@ from foxglove_schemas_protobuf import (
     CompressedVideo_pb2,
     FrameTransforms_pb2,
     PointCloud_pb2,
+    RawImage_pb2,
     SceneUpdate_pb2,
 )
 
@@ -31,6 +32,7 @@ MSG_CLASS = {
     "foxglove.CompressedVideo": CompressedVideo_pb2.CompressedVideo,
     "foxglove.FrameTransforms": FrameTransforms_pb2.FrameTransforms,
     "foxglove.PointCloud": PointCloud_pb2.PointCloud,
+    "foxglove.RawImage": RawImage_pb2.RawImage,
     "foxglove.SceneUpdate": SceneUpdate_pb2.SceneUpdate,
 }
 FILE_DESC = {
@@ -38,6 +40,7 @@ FILE_DESC = {
     "foxglove.CompressedVideo": CompressedVideo_pb2.DESCRIPTOR,
     "foxglove.FrameTransforms": FrameTransforms_pb2.DESCRIPTOR,
     "foxglove.PointCloud": PointCloud_pb2.DESCRIPTOR,
+    "foxglove.RawImage": RawImage_pb2.DESCRIPTOR,
     "foxglove.SceneUpdate": SceneUpdate_pb2.DESCRIPTOR,
 }
 

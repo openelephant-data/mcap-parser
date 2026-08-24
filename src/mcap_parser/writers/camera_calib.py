@@ -6,7 +6,11 @@ from pathlib import Path
 
 from .base import ParseContext, Writer
 
-CALIB_TOPICS = ("/head_left_camera_params/", "/head_right_camera_params/")
+CALIB_TOPICS = (
+    "/head_left_camera_params/",
+    "/head_right_camera_params/",
+    "/head_depth_camera_params/",
+)
 
 
 class CameraCalibWriter(Writer):
@@ -16,9 +20,12 @@ class CameraCalibWriter(Writer):
 
     def feed(self, topic: str, msg, ctx: ParseContext) -> None:
         obj = self._decode(msg.data)
-        side = "left" if "head_left" in topic else "right"
-        variant = "undistorted" if "undistorted" in topic else "raw"
-        key = f"{side}_{variant}"
+        if "head_depth" in topic:
+            key = "head_depth_camera"
+        else:
+            side = "left" if "head_left" in topic else "right"
+            variant = "undistorted" if "undistorted" in topic else "raw"
+            key = f"{side}_{variant}"
         if key in ctx.calib:
             return  # 每帧相同，只存首帧
         ctx.calib[key] = {

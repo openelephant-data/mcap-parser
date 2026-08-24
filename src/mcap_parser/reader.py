@@ -9,6 +9,7 @@ from mcap.reader import make_reader
 from .writers.base import ParseContext, Writer
 from .writers.body_tf import BodyTfWriter
 from .writers.camera_calib import CameraCalibWriter
+from .writers.depth import DepthWriter
 from .writers.hand_keypoints import HandKeypointsWriter
 from .writers.hand_mesh import HandMeshWriter
 from .writers.head_trajectory import HeadTrajectoryWriter
@@ -23,6 +24,7 @@ STREAM_TO_CLASS: dict[str, type[Writer]] = {
     "pointcloud": PointcloudWriter,
     "body_tf": BodyTfWriter,
     "camera_calib": CameraCalibWriter,
+    "depth": DepthWriter,
 }
 ALL_STREAMS = list(STREAM_TO_CLASS.keys())
 

@@ -26,9 +26,20 @@ def test_integration_full_parse(tmp_path):
     # wrist
     wp = np.load(out / "wrist_poses.npz")
     assert wp["left"].shape[1] == 7
-    # calib
+    # calib：左/右 × raw/undistorted + head_depth_camera = 5 组
     calib = json.loads((out / "camera_calibration.json").read_text())
-    assert len(calib) == 4
+    assert set(calib.keys()) == {
+        "left_undistorted", "left_raw", "right_undistorted", "right_raw",
+        "head_depth_camera",
+    }
+    assert calib["head_depth_camera"]["frame_id"] == "head_depth_camera"
+    # 深度图逐帧 .bin 裸流
+    depth_entry = ctx.outputs["depth/"]
+    n_depth = depth_entry["frames"]
+    bins = sorted((out / "depth").glob("*.bin"))
+    assert len(bins) == n_depth
+    # mono16 320×240 = 153600 字节/帧
+    assert all(b.stat().st_size == 153600 for b in bins)
     # 视频存在（可能 muxed=False 但 .mp4/.h264 至少一个）
     assert any((out / f"head_{s}_camera_undistorted.mp4").exists()
                or (out / f"{s}.h264").exists() for s in ("left", "right"))

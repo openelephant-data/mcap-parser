@@ -34,6 +34,8 @@
 | 12 | `/head_left_camera_params/head_left_camera_raw/camera_info` | foxglove.CameraCalibration | 3066 | 左目 raw |
 | 13 | `/head_right_camera_params/head_right_camera_undistorted/camera_info` | foxglove.CameraCalibration | 3066 | 右目 undistorted |
 | 14 | `/head_right_camera_params/head_right_camera_raw/camera_info` | foxglove.CameraCalibration | 3066 | 右目 raw |
+| 15 | `/head_depth_camera/depth/image` | foxglove.RawImage | 509 | 深度图，320×240，encoding `mono16`（2 B/px） |
+| 16 | `/head_depth_camera_params/head_depth_camera/camera_info` | foxglove.CameraCalibration | 509 | 深度相机内参（每帧相同） |
 
 解码依赖 `foxglove_schemas_protobuf`（已安装），类映射：
 
@@ -42,6 +44,7 @@
 - `foxglove.PointCloud` → `foxglove_schemas_protobuf.PointCloud_pb2.PointCloud`
 - `foxglove.CompressedVideo` → `foxglove_schemas_protobuf.CompressedVideo_pb2.CompressedVideo`
 - `foxglove.CameraCalibration` → `foxglove_schemas_protobuf.CameraCalibration_pb2.CameraCalibration`
+- `foxglove.RawImage` → `foxglove_schemas_protobuf.RawImage_pb2.RawImage`
 
 ## 3. 回环输出契约（MCAP 通道 → 文件）
 
@@ -51,7 +54,7 @@
 |---|---|---|
 | ch9 | `head_left_camera_undistorted.mp4` | H.264 重封装为 MP4（`-c copy`），fps 由时间戳算 |
 | ch10 | `head_right_camera_undistorted.mp4` | 同上 |
-| ch11–14 | `camera_calibration.json` | `{left,right}_{raw,undistorted}: {width,height,distortion_model,K[9],D[5],R[9],P[12],frame_id}` |
+| ch11–14,16 | `camera_calibration.json` | `{left,right}_{raw,undistorted} + head_depth_camera: {width,height,distortion_model,K[9],D[5],R[9],P[12],frame_id}` |
 | ch1 | `tracking_data_tf.jsonl` | 每帧一行：`{ts_ns, transforms:[{parent,child,translation[3],rotation[4]}]}`（全部 44 个 frame：2 相机 + 2 腕 + 40 指节，忠实全量） |
 | ch1 | `wrist_poses.npz` | 键 `left`(N,7)、`right`(N,7)、`timestamps`(N,) = 腕根位姿 `[x,y,z,qx,qy,qz,qw]`（手部位姿的根） |
 | ch2 | `left_keypoints_3d.npy` / `right_keypoints_3d.npy` | `(N,21,3)` float32 |
@@ -62,6 +65,7 @@
 | ch6 | `pointclouds/frame_{i:06d}.pcd` | 每帧一个 PCD（ASCII 或 binary，含 rgb 字段） |
 | ch7 | `static_scene.ply` | PLY（xyz+rgb） |
 | ch7 | `aligned_pointclouds.npz`（补键 `pc_static_*`） | 见 §3.1 |
+| ch15 | `depth/frame_{i:06d}.bin` | mono16 裸字节流（320×240，153600 B/帧），原样写出 `RawImage.data`，不转码、不改端序 |
 | ch8 | — | 空通道，跳过 |
 | 全部 | `manifest.json` | 见 §4 |
 

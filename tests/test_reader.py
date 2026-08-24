@@ -16,6 +16,7 @@ def test_reader_dispatch_all_writers(synth_mcap, tmp_path):
     assert "head_pose_trajectory.npy" in outs
     assert "aligned_pointclouds.npz" in outs
     assert "static_scene.ply" in outs
+    assert "depth/" in outs
     for side in ("left", "right"):
         assert f"head_{side}_camera_undistorted.mp4" in outs
 

@@ -25,7 +25,7 @@ uv run mcap-parser --help
 ```bash
 uv run python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--overwrite true]
   [--side left|right|both]
-  [--streams video,hand_keypoints,hand_mesh,head_trajectory,pointcloud,body_tf,camera_calib]
+  [--streams video,hand_keypoints,hand_mesh,head_trajectory,pointcloud,body_tf,camera_calib,depth]
   [--per_frame_pcd true|false]
 ```
 
@@ -37,7 +37,8 @@ uv run python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--ov
 - 头部轨迹：`head_pose_trajectory.npy`，形状 `(N,7)` = `[x,y,z,qx,qy,qz,qw]`
 - 点云：`aligned_pointclouds.npz` + `pointclouds/frame_000000.pcd`（逐帧 binary） + `static_scene.ply`
 - 身体/手根 tf：`tracking_data_tf.jsonl`（每帧 44 个 transform） + `wrist_poses.npz`（`left/right (N,7)` + `timestamps`）
-- 相机标定：`camera_calibration.json`（4 组：左/右 × raw/undistorted）
+- 相机标定：`camera_calibration.json`（5 组：左/右 × raw/undistorted + `head_depth_camera`）
+- 深度图：`depth/frame_{i:06d}.bin`（mono16 裸流，320×240，原样写出 `RawImage.data`，不转码）
 - 清单：`manifest.json`（per-stream 帧数 + timestamps_ns + missing_keys + not_recoverable）
 
 ## 不可恢复

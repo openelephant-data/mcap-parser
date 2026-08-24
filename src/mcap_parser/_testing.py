@@ -10,6 +10,7 @@ from foxglove_schemas_protobuf import (
     CompressedVideo_pb2,
     FrameTransforms_pb2,
     PointCloud_pb2,
+    RawImage_pb2,
     SceneUpdate_pb2,
 )
 from mcap.writer import Writer
@@ -41,6 +42,35 @@ def calib_msg(side: str, variant: str, ts: int = BASE_TS) -> FakeMsg:
     m.R.extend([1, 0, 0, 0, 1, 0, 0, 0, 1])
     m.P.extend([1000, 0, 960, 0, 0, 1000, 720, 0, 0, 0, 1, 0])
     m.frame_id = f"head_{side}_camera"
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def depth_calib_msg(ts: int = BASE_TS) -> FakeMsg:
+    m = CameraCalibration_pb2.CameraCalibration()
+    m.timestamp.seconds = ts // 1_000_000_000
+    m.timestamp.nanos = ts % 1_000_000_000
+    m.width, m.height = 320, 240
+    m.distortion_model = "plumb_bob"
+    m.D.extend([0.0] * 5)
+    m.K.extend([320, 0, 160, 0, 320, 120, 0, 0, 1])
+    m.R.extend([1, 0, 0, 0, 1, 0, 0, 0, 1])
+    m.P.extend([320, 0, 160, 0, 0, 320, 120, 0, 0, 0, 1, 0])
+    m.frame_id = "head_depth_camera"
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def raw_image_msg(ts: int = BASE_TS, n: int = 4) -> FakeMsg:
+    """构造一个 mono16 深度图（n×n 像素，每像素 2 字节，step = n*2）。"""
+    m = RawImage_pb2.RawImage()
+    m.timestamp.seconds = ts // 1_000_000_000
+    m.timestamp.nanos = ts % 1_000_000_000
+    m.frame_id = "head_depth_camera"
+    m.width, m.height = n, n
+    m.encoding = "mono16"
+    m.step = n * 2
+    # 像素随 ts 偏移的 ramp，任意 ts 步长下帧间字节均不同
+    vals = (np.arange(n * n, dtype=np.uint16) + (ts % 65536)).astype(np.uint16)
+    m.data = vals.tobytes()
     return FakeMsg(m.SerializeToString(), ts)
 
 
@@ -177,6 +207,8 @@ SCHEMA_TOPICS = [
     ("foxglove.CameraCalibration", "/head_left_camera_params/head_left_camera_raw/camera_info"),
     ("foxglove.CameraCalibration", "/head_right_camera_params/head_right_camera_undistorted/camera_info"),
     ("foxglove.CameraCalibration", "/head_right_camera_params/head_right_camera_raw/camera_info"),
+    ("foxglove.RawImage", "/head_depth_camera/depth/image"),
+    ("foxglove.CameraCalibration", "/head_depth_camera_params/head_depth_camera/camera_info"),
 ]
 
 
@@ -208,6 +240,8 @@ def build_synth_mcap(p: Path) -> Path:
             (SCHEMA_TOPICS[11][1], calib_msg("left", "raw", ts).data),
             (SCHEMA_TOPICS[12][1], calib_msg("right", "undistorted", ts).data),
             (SCHEMA_TOPICS[13][1], calib_msg("right", "raw", ts).data),
+            (SCHEMA_TOPICS[14][1], raw_image_msg(ts).data),
+            (SCHEMA_TOPICS[15][1], depth_calib_msg(ts).data),
         ]
         for topic, data in msgs:
             w.add_message(channel_id=channels[topic], log_time=ts, data=data, publish_time=ts)

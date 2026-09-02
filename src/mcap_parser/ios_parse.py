@@ -266,6 +266,14 @@ class IosMcapParser:
             if accum["conf"]:
                 self._save_raw_frames(accum["conf"], out_dir / "confidence_frames.npz")
                 outputs["confidence_frames"] = out_dir / "confidence_frames.npz"
+            if accum["hand_3d"]:
+                lm = np.empty(len(accum["hand_3d"]), dtype=object)
+                for i, (p, _) in enumerate(accum["hand_3d"]):
+                    lm[i] = p
+                ts = np.array([t for _, t in accum["hand_3d"]], dtype=np.int64)
+                np.savez_compressed(out_dir / "hand_keypoints_3d.npz",
+                                    landmarks=lm, timestamps=ts)
+                outputs["hand_keypoints_3d"] = out_dir / "hand_keypoints_3d.npz"
             # 各产物写入在后续 Task 逐步填充;本 Task 先只写 parse_report
             report = self._build_report(accum, outputs)
             (out_dir / "parse_report.json").write_text(

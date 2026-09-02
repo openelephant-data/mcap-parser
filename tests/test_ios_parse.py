@@ -100,3 +100,17 @@ def test_ios_parse_depth_and_confidence(ios_synth_mcap, tmp_path):
         assert z["frames"].dtype == object
         assert isinstance(z["frames"][0], bytes)
         assert z["formats"][0] == fmt_prefix
+
+
+def test_ios_parse_hand_keypoints_3d(ios_synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    IosMcapParser(ios_synth_mcap).parse(out, overwrite=True)
+    z = np.load(out / "hand_keypoints_3d.npz", allow_pickle=True)
+    lm = z["landmarks"]
+    ts = z["timestamps"]
+    assert lm.shape == (3,)
+    assert lm.dtype == object
+    assert lm[0].shape == (21, 3)
+    assert lm[0].dtype == np.float32
+    assert ts.shape == (3,)
+    assert ts.dtype == np.int64

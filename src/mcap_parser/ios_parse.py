@@ -192,6 +192,14 @@ class IosMcapParser:
             })
         return entries
 
+    @staticmethod
+    def _save_raw_frames(frames, path: Path) -> None:
+        """无损:逐帧原始 bytes + timestamp + format。"""
+        ts = np.array([f[0] for f in frames], dtype=np.int64)
+        raw = np.array([f[1] for f in frames], dtype=object)
+        fmts = np.array([f[2] for f in frames], dtype=object)
+        np.savez_compressed(path, timestamps=ts, frames=raw, formats=fmts)
+
     def _build_report(self, accum, outputs):
         counts = {
             "camera_infos": list(accum["camera_infos"].keys()),
@@ -252,6 +260,12 @@ class IosMcapParser:
                 (out_dir / "camera_info.json").write_text(
                     json.dumps(accum["camera_infos"], ensure_ascii=False, indent=2))
                 outputs["camera_info"] = out_dir / "camera_info.json"
+            if accum["depth"]:
+                self._save_raw_frames(accum["depth"], out_dir / "depth_frames.npz")
+                outputs["depth_frames"] = out_dir / "depth_frames.npz"
+            if accum["conf"]:
+                self._save_raw_frames(accum["conf"], out_dir / "confidence_frames.npz")
+                outputs["confidence_frames"] = out_dir / "confidence_frames.npz"
             # 各产物写入在后续 Task 逐步填充;本 Task 先只写 parse_report
             report = self._build_report(accum, outputs)
             (out_dir / "parse_report.json").write_text(

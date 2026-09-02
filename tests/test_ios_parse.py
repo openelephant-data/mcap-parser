@@ -86,3 +86,17 @@ def test_ios_parse_transforms(ios_synth_mcap, tmp_path):
     assert abs(arr[0, 0] - (-0.07)) < 1e-6
     assert abs(arr[0, 3] - (-0.49)) < 1e-6
     assert arr[0, 7] > 1_000_000_000  # epoch ns
+
+
+def test_ios_parse_depth_and_confidence(ios_synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    IosMcapParser(ios_synth_mcap).parse(out, overwrite=True)
+    for name, fmt_prefix in [("depth_frames", "8UC1;4x4"),
+                             ("confidence_frames", "8UC1;4x4")]:
+        z = np.load(out / f"{name}.npz", allow_pickle=True)
+        assert z["timestamps"].shape == (3,)
+        assert z["timestamps"].dtype == np.int64
+        assert z["frames"].shape == (3,)
+        assert z["frames"].dtype == object
+        assert isinstance(z["frames"][0], bytes)
+        assert z["formats"][0] == fmt_prefix

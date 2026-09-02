@@ -6,7 +6,7 @@ tf_tree 每帧含 44 个 frame（2 相机 + 2 腕 + 40 指节），无 24-SMPL �
 from __future__ import annotations
 
 import numpy as np
-from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from foxglove_schemas_protobuf import (
     CameraCalibration_pb2,
     CompressedVideo_pb2,
@@ -102,3 +102,16 @@ def decode_pointcloud(obj) -> tuple[np.ndarray, np.ndarray]:
         if cn in fld:
             colors[:, i] = _col(cn).astype(np.float64) / 255.0
     return pts, colors
+
+
+def oeego_msg_class(schema_name: str, schema_data: bytes):
+    """从 oeego/自定义 schema 的 FileDescriptorSet(schema.data)动态构建 protobuf 消息类。
+
+    schema_name 是全限定消息名(如 'oeego.system_proto.MissionManagerProto.OnboardConfig')。
+    """
+    fds = descriptor_pb2.FileDescriptorSet()
+    fds.ParseFromString(schema_data)
+    pool = descriptor_pool.DescriptorPool()
+    for fd in fds.file:
+        pool.Add(fd)
+    return message_factory.GetMessageClass(pool.FindMessageTypeByName(schema_name))

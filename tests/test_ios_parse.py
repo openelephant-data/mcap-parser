@@ -20,3 +20,20 @@ def test_oeego_msg_class_builds_and_parses():
     roundtrip.ParseFromString(m.SerializeToString())
     assert roundtrip.mission_id == "123"
     assert roundtrip.target_frame_rate == 30
+
+
+from mcap.reader import make_reader
+
+
+def test_ios_synth_fixture_has_channels(ios_synth_mcap):
+    with open(ios_synth_mcap, "rb") as f:
+        s = make_reader(f).get_summary()
+    topics = {ch.topic for ch in s.channels.values()}
+    assert "/cam_head_l/color/image_compressed_h265" in topics
+    assert "/cam_head_l/depth/image_raw" in topics
+    assert "/cam_head_l/depth/confidence" in topics
+    assert "/cam_head_l/color/camera_info" in topics
+    assert "/cam_head_l/depth/camera_info" in topics
+    assert "/tf" in topics
+    assert "/cam_head_l/ego_hand_pose/pointcloud_3d" in topics
+    assert "/oeego/mission_manager/onboard_config" in topics

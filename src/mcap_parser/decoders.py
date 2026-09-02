@@ -9,6 +9,7 @@ import numpy as np
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 from foxglove_schemas_protobuf import (
     CameraCalibration_pb2,
+    CompressedImage_pb2,
     CompressedVideo_pb2,
     FrameTransforms_pb2,
     PointCloud_pb2,
@@ -29,6 +30,7 @@ N_MESH_FACES = 1538  # 4614 indices / 3
 # --- schema -> 类 / FileDescriptor ---
 MSG_CLASS = {
     "foxglove.CameraCalibration": CameraCalibration_pb2.CameraCalibration,
+    "foxglove.CompressedImage": CompressedImage_pb2.CompressedImage,
     "foxglove.CompressedVideo": CompressedVideo_pb2.CompressedVideo,
     "foxglove.FrameTransforms": FrameTransforms_pb2.FrameTransforms,
     "foxglove.PointCloud": PointCloud_pb2.PointCloud,
@@ -37,6 +39,7 @@ MSG_CLASS = {
 }
 FILE_DESC = {
     "foxglove.CameraCalibration": CameraCalibration_pb2.DESCRIPTOR,
+    "foxglove.CompressedImage": CompressedImage_pb2.DESCRIPTOR,
     "foxglove.CompressedVideo": CompressedVideo_pb2.DESCRIPTOR,
     "foxglove.FrameTransforms": FrameTransforms_pb2.DESCRIPTOR,
     "foxglove.PointCloud": PointCloud_pb2.DESCRIPTOR,

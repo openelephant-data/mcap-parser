@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import base64
 
+import cv2
 import numpy as np
 from foxglove_schemas_protobuf import (
     CameraCalibration_pb2,
+    CompressedImage_pb2,
     CompressedVideo_pb2,
     FrameTransforms_pb2,
     PointCloud_pb2,
@@ -15,7 +18,7 @@ from foxglove_schemas_protobuf import (
 )
 from mcap.writer import Writer
 
-from .decoders import schema_data
+from .decoders import oeego_msg_class, schema_data
 
 ONBOARD_CONFIG_SCHEMA_B64 = "Cr4HChBjb3JlX3Byb3RvLnByb3RvEhBvZWVnby5jb3JlX3Byb3RvImgKBkhlYWRlchIQCgNzZXEYASABKA1SA3NlcRIxCgVzdGFtcBgCIAEoCzIbLm9lZWdvLmNvcmVfcHJvdG8uVGltZXN0YW1wUgVzdGFtcBIZCghmcmFtZV9pZBgDIAEoCVIHZnJhbWVJZCI1CglUaW1lc3RhbXASEgoEc2VjcxgBIAEoA1IEc2VjcxIUCgVuc2VjcxgCIAEoA1IFbnNlY3MiNAoIRHVyYXRpb24SEgoEc2VjcxgBIAEoBVIEc2VjcxIUCgVuc2VjcxgCIAEoBVIFbnNlY3MiHAoGVmVjdG9yEhIKBGRhdGEYASADKAFSBGRhdGEiJQoHVmVjdG9yMhIMCgF4GAEgASgBUgF4EgwKAXkYAiABKAFSAXkiMwoHVmVjdG9yMxIMCgF4GAEgASgBUgF4EgwKAXkYAiABKAFSAXkSDAoBehgDIAEoAVIBeiJBCgdWZWN0b3I0EgwKAXgYASABKAFSAXgSDAoBeRgCIAEoAVIBeRIMCgF6GAMgASgBUgF6EgwKAXcYBCABKAFSAXciMQoFUG9pbnQSDAoBeBgBIAEoAVIBeBIMCgF5GAIgASgBUgF5EgwKAXoYAyABKAFSAXoiMwoHUG9pbnQzMhIMCgF4GAEgASgCUgF4EgwKAXkYAiABKAJSAXkSDAoBehgDIAEoAlIBeiJECgpRdWF0ZXJuaW9uEgwKAXgYASABKAFSAXgSDAoBeRgCIAEoAVIBeRIMCgF6GAMgASgBUgF6EgwKAXcYBCABKAFSAXciSAoGTWF0cml4EhIKBHJvd3MYASABKA1SBHJvd3MSEgoEY29scxgCIAEoDVIEY29scxIWCgRkYXRhGAMgAygBQgIQAVIEZGF0YSIiCghNYXRyaXgzZBIWCgRkYXRhGAEgAygBQgIQAVIEZGF0YSIkCgpDb3ZhcmlhbmNlEhYKBGRhdGEYASADKAFCAhABUgRkYXRhIiYKDENvdmFyaWFuY2UzZBIWCgRkYXRhGAEgAygBQgIQAVIEZGF0YSKRAQoNVGltZVJlZmVyZW5jZRIwCgZoZWFkZXIYASABKAsyGC5vZWVnby5jb3JlX3Byb3RvLkhlYWRlclIGaGVhZGVyEjYKCHRpbWVfcmVmGAIgASgLMhsub2VlZ28uY29yZV9wcm90by5UaW1lc3RhbXBSB3RpbWVSZWYSFgoGc291cmNlGAMgASgJUgZzb3VyY2ViBnByb3RvMwq7BgoSc3lzdGVtX3Byb3RvLnByb3RvEhJvZWVnby5zeXN0ZW1fcHJvdG8aEGNvcmVfcHJvdG8ucHJvdG8i9gUKE01pc3Npb25NYW5hZ2VyUHJvdG8a3gUKDU9uYm9hcmRDb25maWcSHQoKbWlzc2lvbl9pZBgBIAEoCVIJbWlzc2lvbklkEiEKDG1pc3Npb25fbmFtZRgCIAEoCVILbWlzc2lvbk5hbWUSIAoLZGVzY3JpcHRpb24YAyABKAlSC2Rlc2NyaXB0aW9uEjoKCnN0YXJ0X3RpbWUYBCABKAsyGy5vZWVnby5jb3JlX3Byb3RvLlRpbWVzdGFtcFIJc3RhcnRUaW1lEjYKCGR1cmF0aW9uGAUgASgLMhoub2VlZ28uY29yZV9wcm90by5EdXJhdGlvblIIZHVyYXRpb24SGwoJaXNfYWN0aXZlGAYgASgIUghpc0FjdGl2ZRIjCg1kYXRhX2NoYW5uZWxzGAcgAygJUgxkYXRhQ2hhbm5lbHMSOwoabWF4X3JlY29yZGluZ19kdXJhdGlvbl9zZWMYCCABKA1SF21heFJlY29yZGluZ0R1cmF0aW9uU2VjEioKEXRhcmdldF9mcmFtZV9yYXRlGAkgASgNUg90YXJnZXRGcmFtZVJhdGUSIQoMZW5hYmxlX2F1ZGlvGAogASgIUgtlbmFibGVBdWRpbxIdCgplbmFibGVfaW11GAsgASgIUgllbmFibGVJbXUSKAoQZW5hYmxlX2hhbmRfcG9zZRgMIAEoCFIOZW5hYmxlSGFuZFBvc2USIQoMZW5hYmxlX2RlcHRoGA0gASgIUgtlbmFibGVEZXB0aBIjCg1vdXRwdXRfZm9ybWF0GA4gASgJUgxvdXRwdXRGb3JtYXQSJAoObWF4X3N0b3JhZ2VfbWIYDyABKAFSDG1heFN0b3JhZ2VNYhIfCgtkZXZpY2VfdXVpZBgQIAEoCVIKZGV2aWNlVXVpZBIhCgxkZXZpY2VfbW9kZWwYESABKAlSC2RldmljZU1vZGVsEiwKEnNvZnR3YXJlX2NvbW1pdF9pZBgSIAEoCVIQc29mdHdhcmVDb21taXRJZGIGcHJvdG8z"
 
@@ -247,6 +250,145 @@ def build_synth_mcap(p: Path) -> Path:
         ]
         for topic, data in msgs:
             w.add_message(channel_id=channels[topic], log_time=ts, data=data, publish_time=ts)
+    w.finish()
+    f.close()
+    return p
+
+
+IOS_BASE_TS = 1_788_000_000_000_000_000  # epoch ns
+IOS_STEP = 33_333_333  # ~30fps
+
+
+def _jpeg_bytes(i: int) -> bytes:
+    """用 cv2 编码一张 16x16 的真 JPEG,供 video 重编码测试。"""
+    img = np.full((16, 16, 3), (10 * (i + 1)) % 256, dtype=np.uint8)
+    ok, buf = cv2.imencode(".jpg", img)
+    assert ok
+    return buf.tobytes()
+
+
+def ios_color_msg(ts: int, i: int) -> FakeMsg:
+    m = CompressedImage_pb2.CompressedImage()
+    m.timestamp.seconds = ts // 1_000_000_000
+    m.timestamp.nanos = ts % 1_000_000_000
+    m.frame_id = "head_left_camera_color_optical_frame"
+    m.format = "jpeg"
+    m.data = _jpeg_bytes(i)
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def ios_raw_image_msg(ts: int, frame_id: str, w: int = 4, h: int = 4) -> FakeMsg:
+    m = RawImage_pb2.RawImage()
+    m.timestamp.seconds = ts // 1_000_000_000
+    m.timestamp.nanos = ts % 1_000_000_000
+    m.frame_id = frame_id
+    m.width, m.height = w, h
+    m.encoding = "8UC1"
+    m.step = w
+    m.data = bytes(range(w * h))
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def ios_camera_info_msg(ts: int, frame_id: str, w: int, h: int) -> FakeMsg:
+    m = CameraCalibration_pb2.CameraCalibration()
+    m.timestamp.seconds = ts // 1_000_000_000
+    m.timestamp.nanos = ts % 1_000_000_000
+    m.width, m.height = w, h
+    m.distortion_model = "plumb_bob"
+    m.D.extend([0.0, 0.0, 0.0, 0.0, 0.0])
+    m.K.extend([1343.3, 0, 959.1, 0, 1343.3, 718.7, 0, 0, 1])
+    m.R.extend([1, 0, 0, 0, 1, 0, 0, 0, 1])
+    m.P.extend([1343.3, 0, 959.1, 0, 0, 1343.3, 718.7, 0, 0, 0, 1, 0])
+    m.frame_id = frame_id
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def ios_tf_msg(ts: int) -> FakeMsg:
+    m = FrameTransforms_pb2.FrameTransforms()
+    ft = m.transforms.add()
+    ft.timestamp.seconds = ts // 1_000_000_000
+    ft.timestamp.nanos = ts % 1_000_000_000
+    ft.parent_frame_id = "world"
+    ft.child_frame_id = "head_left_camera_color_optical_frame"
+    ft.translation.x, ft.translation.y, ft.translation.z = -0.07, 0.35, 0.13
+    ft.rotation.x, ft.rotation.y, ft.rotation.z, ft.rotation.w = -0.49, -0.06, -0.015, 0.87
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def ios_hand3d_msg(ts: int, n: int = 21) -> FakeMsg:
+    m = PointCloud_pb2.PointCloud()
+    m.timestamp.seconds = ts // 1_000_000_000
+    m.timestamp.nanos = ts % 1_000_000_000
+    m.frame_id = "head_left_camera_color_optical_frame"
+    m.point_stride = 12
+    for name, off, typ in [("x", 0, 9), ("y", 4, 9), ("z", 8, 9)]:
+        f = m.fields.add()
+        f.name, f.offset, f.type = name, off, typ
+    pts = np.random.rand(n, 3).astype(np.float32)
+    m.data = pts.tobytes()
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+def ios_onboard_msg(ts: int) -> FakeMsg:
+    cls = oeego_msg_class(
+        "oeego.system_proto.MissionManagerProto.OnboardConfig",
+        base64.b64decode(ONBOARD_CONFIG_SCHEMA_B64),
+    )
+    m = cls()
+    m.mission_id = "1543953655491727360"
+    m.target_frame_rate = 30
+    return FakeMsg(m.SerializeToString(), ts)
+
+
+IOS_SCHEMA_TOPICS = [
+    ("foxglove.CompressedImage", "/cam_head_l/color/image_compressed_h265"),
+    ("foxglove.RawImage", "/cam_head_l/depth/image_raw"),
+    ("foxglove.RawImage", "/cam_head_l/depth/confidence"),
+    ("foxglove.CameraCalibration", "/cam_head_l/color/camera_info"),
+    ("foxglove.CameraCalibration", "/cam_head_l/depth/camera_info"),
+    ("foxglove.FrameTransforms", "/tf"),
+    ("foxglove.PointCloud", "/cam_head_l/ego_hand_pose/pointcloud_3d"),
+    ("oeego.system_proto.MissionManagerProto.OnboardConfig",
+     "/oeego/mission_manager/onboard_config"),
+]
+
+
+def build_ios_synth_mcap(p) -> Path:
+    """3 帧 iPhone 风格 foxglove MCAP。"""
+    p = Path(p)
+    f = open(p, "wb")
+    w = Writer(f)
+    w.start()
+    # schema: foxglove 用 schema_data();oeego 用 b64 解码
+    schema_bytes = {}
+    cids = {}
+    for sch_name, topic in IOS_SCHEMA_TOPICS:
+        if sch_name not in schema_bytes:
+            if sch_name.startswith("oeego."):
+                # OnboardConfig
+                schema_bytes[sch_name] = base64.b64decode(ONBOARD_CONFIG_SCHEMA_B64)
+            else:
+                schema_bytes[sch_name] = schema_data(sch_name)
+        sid = w.register_schema(name=sch_name, encoding="protobuf", data=schema_bytes[sch_name])
+        cids[topic] = w.register_channel(topic=topic, message_encoding="protobuf", schema_id=sid)
+    for i in range(3):
+        ts = IOS_BASE_TS + i * IOS_STEP
+        msgs = [
+            ("/cam_head_l/color/image_compressed_h265", ios_color_msg(ts, i).data),
+            ("/cam_head_l/depth/image_raw",
+             ios_raw_image_msg(ts, "head_left_camera_depth_optical_frame").data),
+            ("/cam_head_l/depth/confidence",
+             ios_raw_image_msg(ts, "head_left_camera_depth_optical_frame").data),
+            ("/cam_head_l/color/camera_info",
+             ios_camera_info_msg(ts, "head_left_camera_color_optical_frame", 1920, 1440).data),
+            ("/cam_head_l/depth/camera_info",
+             ios_camera_info_msg(ts, "head_left_camera_depth_optical_frame", 256, 192).data),
+            ("/tf", ios_tf_msg(ts).data),
+            ("/cam_head_l/ego_hand_pose/pointcloud_3d", ios_hand3d_msg(ts).data),
+            ("/oeego/mission_manager/onboard_config", ios_onboard_msg(ts).data),
+        ]
+        for topic, data in msgs:
+            w.add_message(channel_id=cids[topic], log_time=ts, data=data, publish_time=ts)
     w.finish()
     f.close()
     return p

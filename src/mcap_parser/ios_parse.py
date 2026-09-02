@@ -326,10 +326,10 @@ class IosMcapParser:
                 elif keep_frames_on_fail and (out_dir / "color_frames").exists():
                     outputs["video_head"] = out_dir / "color_frames"
             # 各产物写入在后续 Task 逐步填充;本 Task 先只写 parse_report
+            outputs["parse_report"] = out_dir / "parse_report.json"
             report = self._build_report(accum, outputs)
             (out_dir / "parse_report.json").write_text(
                 json.dumps(report, ensure_ascii=False, indent=2))
-            outputs["parse_report"] = out_dir / "parse_report.json"
         finally:
             f.close()
         return outputs

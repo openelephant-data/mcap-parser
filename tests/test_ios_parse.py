@@ -135,3 +135,32 @@ def test_ios_parse_video_head(ios_synth_mcap, tmp_path):
     assert cap.isOpened()
     assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 3
     cap.release()
+
+
+def test_ios_parse_report_full(ios_synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    IosMcapParser(ios_synth_mcap).parse(out, overwrite=True)
+    report = json.loads((out / "parse_report.json").read_text())
+    keys = {o["key"] for o in report["outputs"]}
+    assert "parse_report" in keys
+    assert "camera_info" in keys
+    assert "transforms" in keys
+    assert "depth_frames" in keys
+    assert "confidence_frames" in keys
+    assert "hand_keypoints_3d" in keys
+    # video_head 仅在有 ffmpeg 时存在
+    for key in ("camera_info", "transforms", "depth_frames",
+                "confidence_frames", "hand_keypoints_3d", "parse_report"):
+        e = next(o for o in report["outputs"] if o["key"] == key)
+        assert e["desc"]
+    assert report["case_id"] == "1543953655491727360"
+    assert report["transform_count"] == 3
+    assert report["hand_3d_count"] == 3
+    assert report["hand_2d_count"] == 0
+    assert report["depth_frame_count"] == 3
+    assert report["confidence_frame_count"] == 3
+    assert report["video_nal_count"] == 3
+    assert set(report["camera_infos"]) == {
+        "head_left_camera_color_optical_frame",
+        "head_left_camera_depth_optical_frame",
+    }

@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
+import subprocess
 
 import numpy as np
+import pytest
 
 from mcap.reader import make_reader
 
@@ -114,3 +117,21 @@ def test_ios_parse_hand_keypoints_3d(ios_synth_mcap, tmp_path):
     assert lm[0].dtype == np.float32
     assert ts.shape == (3,)
     assert ts.dtype == np.int64
+
+
+def _has_ffmpeg() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+def test_ios_parse_video_head(ios_synth_mcap, tmp_path):
+    if not _has_ffmpeg():
+        pytest.skip("ffmpeg not installed")
+    out = tmp_path / "out"
+    IosMcapParser(ios_synth_mcap).parse(out, overwrite=True)
+    mp4 = out / "video_head.mp4"
+    assert mp4.exists() and mp4.stat().st_size > 0
+    import cv2
+    cap = cv2.VideoCapture(str(mp4))
+    assert cap.isOpened()
+    assert int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) == 3
+    cap.release()

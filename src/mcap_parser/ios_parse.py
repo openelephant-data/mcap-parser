@@ -9,6 +9,8 @@ from __future__ import annotations
 import base64
 import json
 import shutil
+import subprocess
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -200,6 +202,45 @@ class IosMcapParser:
         fmts = np.array([f[2] for f in frames], dtype=object)
         np.savez_compressed(path, timestamps=ts, frames=raw, formats=fmts)
 
+    def _write_video(self, dst: Path, jpegs, nals, fps: int,
+                     keep_frames_on_fail: bool) -> None:
+        """JPEG 序列或 HEVC NAL -> libx264 mp4。
+
+        JPEG:image2 输入逐帧 jpg;HEVC:-f hevc demux。均 libx264 重编码,
+        -bf 0 -g fps。fps 来自 onboard_config.target_frame_rate,缺则按 log_time 计算。
+        """
+        if not jpegs and not nals:
+            return
+        if fps <= 0:
+            lts = [t for t, _ in (jpegs + nals)]
+            span = (max(lts) - min(lts)) / 1e9
+            fps = max(round(len(lts) / span), 1) if span > 0 else 30
+        tmp = tempfile.mkdtemp(prefix="iosvideo_")
+        try:
+            if jpegs:
+                for i, (_, b) in enumerate(jpegs):
+                    (Path(tmp) / f"frame_{i:06d}.jpg").write_bytes(b)
+                cmd = ["ffmpeg", "-y", "-framerate", str(fps),
+                       "-i", str(Path(tmp) / "frame_%06d.jpg"),
+                       "-c:v", "libx264", "-bf", "0", "-g", str(max(fps, 1)),
+                       "-preset", "fast", "-pix_fmt", "yuv420p", "-an", str(dst)]
+            else:
+                inp = Path(tmp) / "stream.h265"
+                inp.write_bytes(b"".join(b for _, b in nals))
+                cmd = ["ffmpeg", "-y", "-framerate", str(fps), "-f", "hevc",
+                       "-i", str(inp),
+                       "-c:v", "libx264", "-bf", "0", "-g", str(max(fps, 1)),
+                       "-preset", "fast", "-pix_fmt", "yuv420p", "-an", str(dst)]
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode != 0 or not dst.exists() or dst.stat().st_size == 0:
+                if keep_frames_on_fail and jpegs:
+                    import shutil as _sh
+                    _sh.copytree(tmp, dst.parent / "color_frames",
+                                 dirs_exist_ok=True)
+        finally:
+            import shutil as _sh
+            _sh.rmtree(tmp, ignore_errors=True)
+
     def _build_report(self, accum, outputs):
         counts = {
             "camera_infos": list(accum["camera_infos"].keys()),
@@ -274,6 +315,16 @@ class IosMcapParser:
                 np.savez_compressed(out_dir / "hand_keypoints_3d.npz",
                                     landmarks=lm, timestamps=ts)
                 outputs["hand_keypoints_3d"] = out_dir / "hand_keypoints_3d.npz"
+            nals = accum["video_nals"]
+            jpegs = accum["video_jpegs"]
+            if jpegs or nals:
+                fps = accum["oc_fps"] or 0
+                self._write_video(out_dir / "video_head.mp4", jpegs, nals, fps,
+                                 keep_frames_on_fail)
+                if (out_dir / "video_head.mp4").exists():
+                    outputs["video_head"] = out_dir / "video_head.mp4"
+                elif keep_frames_on_fail and (out_dir / "color_frames").exists():
+                    outputs["video_head"] = out_dir / "color_frames"
             # 各产物写入在后续 Task 逐步填充;本 Task 先只写 parse_report
             report = self._build_report(accum, outputs)
             (out_dir / "parse_report.json").write_text(

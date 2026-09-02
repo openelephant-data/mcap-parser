@@ -5,6 +5,7 @@ import base64
 import json
 import shutil
 import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -164,3 +165,29 @@ def test_ios_parse_report_full(ios_synth_mcap, tmp_path):
         "head_left_camera_color_optical_frame",
         "head_left_camera_depth_optical_frame",
     }
+
+
+def test_cli_auto_routes_iphone(ios_synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    r = subprocess.run(
+        [sys.executable, "-m", "mcap_parser", str(ios_synth_mcap),
+         "--out_dir", str(out), "--overwrite", "true"],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    # iPhone 产物标志:parse_report.json + transforms.npz(非 PICO 的 manifest.json)
+    assert (out / "parse_report.json").exists()
+    assert (out / "transforms.npz").exists()
+    assert not (out / "manifest.json").exists()
+
+
+def test_cli_explicit_profile_pico_still_works(synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    r = subprocess.run(
+        [sys.executable, "-m", "mcap_parser", str(synth_mcap),
+         "--out_dir", str(out), "--overwrite", "true",
+         "--profile", "pico"],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    assert (out / "manifest.json").exists()

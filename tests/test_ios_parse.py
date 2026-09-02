@@ -54,3 +54,20 @@ def test_ios_parse_writes_report_channels(ios_synth_mcap, tmp_path):
         assert c["schema"]
         assert c["span_s"] >= 0
         assert c["hz"] >= 0
+
+
+def test_ios_parse_camera_info(ios_synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    IosMcapParser(ios_synth_mcap).parse(out, overwrite=True)
+    ci = json.loads((out / "camera_info.json").read_text())
+    assert set(ci.keys()) == {
+        "head_left_camera_color_optical_frame",
+        "head_left_camera_depth_optical_frame",
+    }
+    color = ci["head_left_camera_color_optical_frame"]
+    assert color["width"] == 1920 and color["height"] == 1440
+    assert color["distortion_model"] == "plumb_bob"
+    assert len(color["K"]) == 9
+    assert len(color["R"]) == 9
+    assert len(color["P"]) == 12
+    assert color["frame_id"] == "head_left_camera_color_optical_frame"

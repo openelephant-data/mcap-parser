@@ -244,6 +244,10 @@ class IosMcapParser:
             for schema, channel, msg in r.iter_messages():
                 self._feed(channel, msg, chan_info, oc_cls, accum)
             outputs: dict[str, Path] = {}
+            if accum["camera_infos"]:
+                (out_dir / "camera_info.json").write_text(
+                    json.dumps(accum["camera_infos"], ensure_ascii=False, indent=2))
+                outputs["camera_info"] = out_dir / "camera_info.json"
             # 各产物写入在后续 Task 逐步填充;本 Task 先只写 parse_report
             report = self._build_report(accum, outputs)
             (out_dir / "parse_report.json").write_text(

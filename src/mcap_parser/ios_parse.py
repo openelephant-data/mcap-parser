@@ -244,6 +244,10 @@ class IosMcapParser:
             for schema, channel, msg in r.iter_messages():
                 self._feed(channel, msg, chan_info, oc_cls, accum)
             outputs: dict[str, Path] = {}
+            if accum["transforms"]:
+                arr = np.array(accum["transforms"], dtype=np.float64)
+                np.savez_compressed(out_dir / "transforms.npz", transforms=arr)
+                outputs["transforms"] = out_dir / "transforms.npz"
             if accum["camera_infos"]:
                 (out_dir / "camera_info.json").write_text(
                     json.dumps(accum["camera_infos"], ensure_ascii=False, indent=2))

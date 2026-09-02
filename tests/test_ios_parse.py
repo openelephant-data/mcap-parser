@@ -4,6 +4,8 @@ from __future__ import annotations
 import base64
 import json
 
+import numpy as np
+
 from mcap.reader import make_reader
 
 from mcap_parser._testing import ONBOARD_CONFIG_SCHEMA_B64
@@ -71,3 +73,16 @@ def test_ios_parse_camera_info(ios_synth_mcap, tmp_path):
     assert len(color["R"]) == 9
     assert len(color["P"]) == 12
     assert color["frame_id"] == "head_left_camera_color_optical_frame"
+
+
+def test_ios_parse_transforms(ios_synth_mcap, tmp_path):
+    out = tmp_path / "out"
+    IosMcapParser(ios_synth_mcap).parse(out, overwrite=True)
+    z = np.load(out / "transforms.npz")
+    arr = z["transforms"]
+    assert arr.shape == (3, 8)
+    assert arr.dtype == np.float64
+    # 前 7 列为位姿,第 8 列为 ts ns(epoch 量级)
+    assert abs(arr[0, 0] - (-0.07)) < 1e-6
+    assert abs(arr[0, 3] - (-0.49)) < 1e-6
+    assert arr[0, 7] > 1_000_000_000  # epoch ns

@@ -154,6 +154,15 @@ def test_ios_parse_report_full(ios_synth_mcap, tmp_path):
                 "confidence_frames", "hand_keypoints_3d", "parse_report"):
         e = next(o for o in report["outputs"] if o["key"] == key)
         assert e["desc"]
+    expected_order = ["video_head", "depth_frames", "confidence_frames",
+                      "camera_info", "transforms", "hand_keypoints_3d", "parse_report"]
+    # video_head 仅在有 ffmpeg 时存在;过滤掉实际不存在的
+    actual_order = [o["key"] for o in report["outputs"]]
+    for k in actual_order:
+        assert k in expected_order, f"unexpected output key {k}"
+    # 在 expected_order 中的、且实际存在的 key,其相对顺序必须与 expected_order 一致
+    present = [k for k in expected_order if k in actual_order]
+    assert actual_order == present, f"outputs order mismatch: {actual_order} vs {present}"
     assert report["case_id"] == "1543953655491727360"
     assert report["transform_count"] == 3
     assert report["hand_3d_count"] == 3

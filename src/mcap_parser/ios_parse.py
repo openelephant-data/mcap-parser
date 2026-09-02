@@ -37,6 +37,11 @@ OUTPUT_DESCRIPTIONS = {
     "confidence_frames": "置信度帧 (8UC1)",
 }
 
+_OUTPUT_ORDER = (
+    "video_head", "depth_frames", "confidence_frames",
+    "camera_info", "transforms", "hand_keypoints_3d", "parse_report",
+)
+
 
 def _flat(xs) -> list[float]:
     return [float(x) for x in xs]
@@ -270,12 +275,13 @@ class IosMcapParser:
             "confidence_frame_count": len(accum["conf"]),
         }
         out_entries = []
-        for key, path in outputs.items():
-            e = {"key": key, "path": str(path)}
-            desc = OUTPUT_DESCRIPTIONS.get(key)
-            if desc:
-                e["desc"] = desc
-            out_entries.append(e)
+        for key in _OUTPUT_ORDER:
+            if key in outputs:
+                e = {"key": key, "path": str(outputs[key])}
+                desc = OUTPUT_DESCRIPTIONS.get(key)
+                if desc:
+                    e["desc"] = desc
+                out_entries.append(e)
         case_id = accum["case_id"] or self._case_id_from_name()
         return {"case_id": case_id, "outputs": out_entries,
                 "video_head_status": accum["video_status"],

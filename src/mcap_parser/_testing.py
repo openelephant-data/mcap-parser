@@ -353,7 +353,7 @@ IOS_SCHEMA_TOPICS = [
 ]
 
 
-def build_ios_synth_mcap(p) -> Path:
+def build_ios_synth_mcap(p: Path) -> Path:
     """3 帧 iPhone 风格 foxglove MCAP。"""
     p = Path(p)
     f = open(p, "wb")

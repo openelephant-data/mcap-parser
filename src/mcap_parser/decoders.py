@@ -47,10 +47,11 @@ FILE_DESC = {
     "foxglove.SceneUpdate": SceneUpdate_pb2.DESCRIPTOR,
 }
 
-# foxglove NumericType 枚举值 -> numpy dtype 字符串
+# foxglove PackedElementField.NumericType 枚举值 -> numpy dtype 字符串
+# 实测 foxglove 枚举: UINT8=1 INT8=2 UINT16=3 INT16=4 UINT32=5 INT32=6 FLOAT32=7 FLOAT64=8
 _NUMPY_DTYPE = {
-    1: "i1", 2: "u1", 3: "i2", 4: "u2", 5: "i4", 6: "u4",
-    7: "i8", 8: "u8", 9: "f4", 10: "f8",
+    1: "u1", 2: "i1", 3: "u2", 4: "i2", 5: "u4", 6: "i4",
+    7: "f4", 8: "f8",
 }
 
 

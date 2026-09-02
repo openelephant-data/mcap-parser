@@ -172,8 +172,8 @@ def pointcloud_msg(ts: int = BASE_TS, n: int = 5, static: bool = False) -> FakeM
     m.frame_id = "world"
     m.point_stride = 16
     for name, off, typ in [
-        ("x", 0, 9), ("y", 4, 9), ("z", 8, 9),
-        ("red", 12, 2), ("green", 13, 2), ("blue", 14, 2), ("alpha", 15, 2),
+        ("x", 0, 7), ("y", 4, 7), ("z", 8, 7),
+        ("red", 12, 1), ("green", 13, 1), ("blue", 14, 1), ("alpha", 15, 1),
     ]:
         f = m.fields.add()
         f.name, f.offset, f.type = name, off, typ
@@ -321,7 +321,7 @@ def ios_hand3d_msg(ts: int, n: int = 21) -> FakeMsg:
     m.timestamp.nanos = ts % 1_000_000_000
     m.frame_id = "head_left_camera_color_optical_frame"
     m.point_stride = 12
-    for name, off, typ in [("x", 0, 9), ("y", 4, 9), ("z", 8, 9)]:
+    for name, off, typ in [("x", 0, 7), ("y", 4, 7), ("z", 8, 7)]:
         f = m.fields.add()
         f.name, f.offset, f.type = name, off, typ
     pts = np.random.rand(n, 3).astype(np.float32)

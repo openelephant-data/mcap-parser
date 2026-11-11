@@ -1,5 +1,7 @@
 # mcap-parser
 
+[English](README_EN.md) | 中文
+
 把 `head_pose_mcap.mcap`（foxglove/protobuf）解析为独立文件，格式对齐 `openelephant-data` 原始产物。
 
 ## 安装
@@ -36,7 +38,7 @@ uv run python -m mcap_parser <path/to/head_pose_mcap.mcap> --out_dir <out> [--ov
 - 手部网格：`{left,right}_hand_vertices.npz`（`vertices(N,778,3)` + `faces(1538,3)` + `is_right` + `detected`）
 - 头部轨迹：`head_pose_trajectory.npy`，形状 `(N,7)` = `[x,y,z,qx,qy,qz,qw]`
 - 点云：`aligned_pointclouds.npz` + `pointclouds/frame_000000.pcd`（逐帧 binary） + `static_scene.ply`
-- 身体/手根 tf：`tracking_data_tf.jsonl`（每帧 44 个 transform） + `wrist_poses.npz`（`left/right (N,7)` + `timestamps`）
+- 身体/手腕 tf：`tracking_data_tf.jsonl`（每帧 44 个 transform） + `wrist_poses.npz`（`left/right (N,7)` + `timestamps`）
 - 相机标定：`camera_calibration.json`（5 组：左/右 × raw/undistorted + `head_depth_camera`）
 - 深度图：`head_depth_camera.npz`（`depth(N,240,320)` uint16 + `timestamps_ns`/`frame_indices` 索引，mono16 原值堆叠，zlib 压缩）
 - 清单：`manifest.json`（per-stream 帧数 + timestamps_ns + missing_keys + not_recoverable）

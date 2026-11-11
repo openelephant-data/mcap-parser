@@ -1,4 +1,4 @@
-"""身体/手根 tf writer：ch1 -> tracking_data_tf.jsonl + wrist_poses.npz。
+"""身体/手腕 tf writer：ch1 -> tracking_data_tf.jsonl + wrist_poses.npz。
 
 feed 阶段把每帧全部 transforms 写入 ctx.tf_cache（供 head_trajectory/pointcloud 跨流用）。
 """
